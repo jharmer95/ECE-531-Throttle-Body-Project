@@ -1,8 +1,8 @@
 """Module for communicating with the Arduino via I2c and a custom function buffer"""
 
 from enum import IntEnum, unique
-from typing import Dict, List
-import simple_i2c as si2c
+from typing import Any, Dict, List, Tuple
+from simple_i2c import read_bytes, write_bytes
 import struct, sys
 
 # Globals
@@ -22,13 +22,9 @@ class ErrorCode(IntEnum):
 
 
 class Buffer:
-    cmd: int = 0
-    params: Dict[str, List] = {
-        "ints": [0, 0, 0, 0, 0, 0, 0],
-        "floats": [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
-        "string": "",
-    }
-    union_type: str = "int"
+    cmd: int
+    params: Dict[str, List]
+    union_type: str
 
     def __init__(self, cmd):
         self.cmd = cmd
@@ -95,7 +91,7 @@ class Buffer:
             return inst
 
 
-def call_function(function: Function, *args):
+def call_function(function: Function, *args) -> Tuple[bool, Any]:
     global ADDR
 
     mesg_buf = Buffer(function)
@@ -108,9 +104,9 @@ def call_function(function: Function, *args):
         mesg_buf.union_type = "int"
         return_type = "void"
 
-    si2c.write_bytes(ADDR, mesg_buf.pack())
+    write_bytes(ADDR, mesg_buf.pack())
 
-    response = si2c.read_bytes(ADDR, 29)
+    response = read_bytes(ADDR, 29)
     mesg_buf = Buffer.unpack(response, return_type)
 
     if mesg_buf.cmd != ErrorCode.ERROR_NONE:

@@ -3,44 +3,45 @@
 from smbus2 import SMBus, i2c_msg
 import struct, sys
 
-_SMBUS_ACTIVE: bool = False
-_SMBUS_OBJ: SMBus = None
+# Private globals
+__SMBUS_ACTIVE: bool = False
+__SMBUS_OBJ: SMBus = None
 
 
 def init_bus(num: int) -> bool:
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if _SMBUS_ACTIVE:
+    if __SMBUS_ACTIVE:
         print(
             "Bus is already active, please close the bus before re-initializing",
             file=sys.stderr,
         )
         return False
 
-    _SMBUS_OBJ = SMBus(num)
-    _SMBUS_ACTIVE = True
+    __SMBUS_OBJ = SMBus(num)
+    __SMBUS_ACTIVE = True
     return True
 
 
 def close_bus():
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    _SMBUS_OBJ.close()
-    _SMBUS_ACTIVE = False
+    __SMBUS_OBJ.close()
+    __SMBUS_ACTIVE = False
 
 
 def write_bytes(address: int, data: bytes):
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
     msg: i2c_msg = i2c_msg.write(address, data)
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
 
 
 def write_int(
@@ -50,10 +51,10 @@ def write_int(
     signed: bool = True,
     byte_order: str = "little",
 ):
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
@@ -77,14 +78,14 @@ def write_int(
     msg: i2c_msg = i2c_msg.write(
         address, value.to_bytes(int_sz // 8, byteorder=byte_order, signed=signed)
     )
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
 
 
 def write_float(address: int, value: float, double_precision: bool = False):
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
@@ -95,7 +96,7 @@ def write_float(address: int, value: float, double_precision: bool = False):
         data = struct.pack("f", value)
 
     msg: i2c_msg = i2c_msg.write(address, data)
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
 
 
 def write_int8(address: int, value: int, byte_order: str = "little"):
@@ -131,25 +132,25 @@ def write_uint64(address: int, value: int, byte_order: str = "little"):
 
 
 def read_bytes(address: int, num_bytes: int) -> bytes:
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
     msg: i2c_msg = i2c_msg.read(address, num_bytes)
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
     return bytes(msg)
 
 
 def read_int(
     address: int, int_sz: int = 32, signed: bool = True, byte_order: str = "little"
 ) -> int:
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
@@ -171,15 +172,15 @@ def read_int(
             int_sz = 64
 
     msg: i2c_msg = i2c_msg.read(address, int_sz // 8)
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
     return int.from_bytes(bytes(msg), byteorder=byte_order, signed=signed)
 
 
 def read_float(address: int, double_precision: bool = False) -> float:
-    global _SMBUS_ACTIVE
-    global _SMBUS_OBJ
+    global __SMBUS_ACTIVE
+    global __SMBUS_OBJ
 
-    if not _SMBUS_ACTIVE:
+    if not __SMBUS_ACTIVE:
         print("Bus is not active, please initialize the bus first", file=sys.stderr)
         return
 
@@ -193,7 +194,7 @@ def read_float(address: int, double_precision: bool = False) -> float:
         fmt = "f"
 
     msg = i2c_msg.read(address, sz)
-    _SMBUS_OBJ.i2c_rdwr(msg)
+    __SMBUS_OBJ.i2c_rdwr(msg)
     [x] = struct.unpack(fmt, bytes(msg))
     return x
 
