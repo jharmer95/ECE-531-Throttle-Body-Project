@@ -24,20 +24,22 @@
 static_assert(LOW == 0x0, "Expecting LOW to be 0");
 
 constexpr int SERVO_PWM_PIN = 3;
-constexpr unsigned long BAUD_RATE = 9600UL;
+constexpr unsigned long SERIAL_BAUD_RATE = 9'600UL;
+constexpr uint32_t I2C_BAUD_RATE = 10'000U;
 constexpr int I2C_ADDRESS = 8;
 
 i2c_buffer g_buf;
-volatile int g_servo_position = 45;
+volatile int g_servo_position = 46;
 Servo g_servo;
 
 void setup()
 {
     Wire.begin(I2C_ADDRESS);
+    Wire.setClock(I2C_BAUD_RATE);
     Wire.onReceive(receiveEvent);
     Wire.onRequest(requestEvent);
     g_servo.attach(SERVO_PWM_PIN);
-    Serial.begin(BAUD_RATE);
+    Serial.begin(SERIAL_BAUD_RATE);
     PRINTLN("DEBUG Enabled!\n");
 }
 
@@ -47,20 +49,20 @@ void loop()
     UpdateServo();
 }
 
-float Saturate(float val)
-{
-    if (val < -1.00f * calibration::SATURATION_CUTOFF)
-    {
-        return -1.00f;
-    }
+// float Saturate(float val)
+// {
+//     if (val < -1.00f * calibration::SATURATION_CUTOFF)
+//     {
+//         return -1.00f;
+//     }
 
-    if (val > calibration::SATURATION_CUTOFF)
-    {
-        return 1.00f;
-    }
+//     if (val > calibration::SATURATION_CUTOFF)
+//     {
+//         return 1.00f;
+//     }
 
-    return atan(calibration::SATURATION_STEEPNESS * val) * (2.00f / PI);
-}
+//     return atan(calibration::SATURATION_STEEPNESS * val) * (2.00f / PI);
+// }
 
 void UpdateServo()
 {
@@ -71,7 +73,7 @@ void UpdateServo()
 int GetServoPosition()
 {
     g_buf.clear_error();
-    return g_servo_position;
+    return map(g_servo_position, calibration::SERVO_MIN_POSITION, calibration::SERVO_MAX_POSITION, 0, 90);
 }
 
 void SetServoPosition(int pos)
