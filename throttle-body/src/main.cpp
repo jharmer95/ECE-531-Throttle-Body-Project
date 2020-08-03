@@ -25,7 +25,7 @@ static_assert(LOW == 0x0, "Expecting LOW to be 0");
 
 constexpr int SERVO_PWM_PIN = 3;
 constexpr unsigned long SERIAL_BAUD_RATE = 9'600UL;
-constexpr uint32_t I2C_BAUD_RATE = 10'000U;
+constexpr uint32_t I2C_BAUD_RATE = 100'000U;
 constexpr int I2C_ADDRESS = 8;
 
 i2c_buffer g_buf;
