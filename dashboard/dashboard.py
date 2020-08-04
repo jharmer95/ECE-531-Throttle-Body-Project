@@ -1,3 +1,10 @@
+"""Flask app for viewing and interacting with the controller"""
+
+__author__ = "Jackson Harmer"
+__copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
+__license__ = "MIT"
+__version__ = "0.1"
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import atexit, threading, os.path, signal, sys

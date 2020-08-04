@@ -1,5 +1,10 @@
 """Module for simplifying I2C communication using smbus2"""
 
+__author__ = "Jackson Harmer"
+__copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
+__license__ = "MIT"
+__version__ = "0.1"
+
 from smbus2 import SMBus, i2c_msg
 import struct, sys
 

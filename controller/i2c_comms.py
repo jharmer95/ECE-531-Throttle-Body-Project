@@ -1,5 +1,10 @@
 """Module for communicating with the Arduino via I2c and a custom function buffer"""
 
+__author__ = "Jackson Harmer"
+__copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
+__license__ = "MIT"
+__version__ = "0.1"
+
 from enum import IntEnum, unique
 from typing import Any, Dict, List, Tuple
 from simple_i2c import read_bytes, write_bytes

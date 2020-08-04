@@ -1,3 +1,10 @@
+"""Module for simulating an engine controller"""
+
+__author__ = "Jackson Harmer"
+__copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
+__license__ = "MIT"
+__version__ = "0.1"
+
 from simple_pid import PID
 from typing import List
 import i2c_comms as i2c
