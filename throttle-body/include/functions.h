@@ -5,7 +5,7 @@
 
 #pragma once
 
-float Saturate(float val);
+//float Saturate(float val);
 void UpdateServo();
 int GetServoPosition();
 void SetServoPosition(int pos);
