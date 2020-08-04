@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECM Dashboard</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://bernii.github.io/gauge.js/dist/gauge.min.js"></script>
+    <script type="text/javascript" charset="utf-8">
+        $(document).ready(function () {
+            var socket = io();
+            var opts ={
+                angle: -0.1,
+                lineWidth: 0.4,
+                radiusScale: 1,
+                pointer: {
+                    length: 0.6,
+                    strokeWidth: 0.035,
+                    color: "#000000"
+                },
+                limitMax: true,
+                limitMin: true,
+                colorStart: "#6FADCF",
+                colorStop: "#8FC0DA",
+                strokeColor: "#E0E0E0",
+                generateGradient: true,
+                highDpiSupport: true,
+                renderTicks: {
+                    divisions: 5,
+                    divWidth: 1.1,
+                    divLength: 0.42,
+                    divColor: "#333333",
+                    subDivisions: 4,
+                    subLength: 0.32,
+                    subWidth: 0.6,
+                    subColor: "#666666"
+                },
+                staticLabels: {
+                    font: "10px sans-serif",
+                    labels: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    color: "#000000",
+                    fractionDigits: 0
+                }
+            };
+            var target = document.getElementById("gauge-canvas");
+            var gauge = new Gauge(target).setOptions(opts);
+            gauge.maxValue = 100;
+            gauge.setMinValue(0);
+            gauge.animationSpeed = 32;
+            gauge.set(0);
+            var opts2 = {
+                angle: 0.25,
+                lineWidth: 0.26,
+                radiusScale: 1,
+                pointer: {
+                    length: 0.52,
+                    strokeWidth: 0.022,
+                    color: '#000000'
+                },
+                limitMax: false,
+                limitMin: false,
+                colorStart: '#6F6EA0',
+                colorStop: '#C0C0DB',
+                strokeColor: '#EEEEEE',
+                generateGradient: true,
+                highDpiSupport: true,
+                staticZones: [
+                    {strokeStyle: "#F03E3E", min: 13400, max: 14100},
+                    {strokeStyle: "#FFDD00", min: 14100, max: 14500},
+                    {strokeStyle: "#30B32D", min: 14500, max: 14900},
+                    {strokeStyle: "#FFDD00", min: 14900, max: 15300},
+                    {strokeStyle: "#F03E3E", min: 15300, max: 16000}
+                ]
+                //percentColors: [[0.0, "#a9d70b"], [0.4, "#f9c802"], [0.5, "#00ff00"], [0.6, "#f9c802"], [1.0, "#a9d70b"]]
+            };
+            var target2 = document.getElementById('gauge2-canvas');
+            var gauge2 = new Gauge(target2).setOptions(opts2);
+            gauge2.maxValue = 16000;
+            gauge2.setMinValue(13400);  // Prefer setter over gauge.minValue = 0
+            gauge2.animationSpeed = 32; // set animation speed (32 is default value)
+            gauge2.set(13400); // set actual value
+            socket.on("connect", function () {
+                socket.emit("my event");
+            });
+            socket.on("my response", function (msg) {
+                $("#cruise-enabled").text("Cruise Control: " + msg.cruise_on);
+                $("#cruise-speed").text("Cruise Speed: " + msg.cruise_speed);
+                $("#vehicle-speed").text("Vehicle Speed: " + msg.vehicle_speed);
+                $("#accelerator").text("Accelerator %: " + msg.accelerator);
+                $("#throttle").text("Throttle %: " + msg.throttle);
+                $("#maf-val").text("MAF: " + msg.maf);
+                gauge.set(msg.vehicle_speed);
+                gauge2.set(msg.maf * 1000);
+            });
+            $("#my-form").submit(function () {
+                var arr = $("#my-form").serializeArray();
+                if (arr.length === 3) {
+                    arr[1]["value"] = "true"
+                } else {
+                    var obj = { "name": "f-cruise", "value": "false" }
+                    arr.splice(1, 0, obj)
+                }
+                if (arr[0]["value"] == "") {
+                    arr[0]["value"] = "0";
+                }
+                if (arr[2]["value"] == "") {
+                    arr[2]["value"] = "0";
+                }
+                socket.emit("set data", arr);
+                return false;
+            });
+            setInterval(function () {
+                socket.emit("my event");
+            }, 1000);
+        });
+    </script>
+</head>
+
+<body>
+    <p id="cruise-enabled"></p>
+    <p id="cruise-speed"></p>
+    <p id="vehicle-speed"></p>
+    <p id="accelerator"></p>
+    <p id="throttle"></p>
+    <p id="maf-val"></p>
+    <br><br>
+    <canvas id="gauge-canvas" width="380" height="240"></canvas>
+    <br>
+    <canvas id="gauge2-canvas" width="380" height="240"></canvas>
+    <br><br>
+    <form id="my-form" action="" method="get">
+        <label for="f-accel">Accelerator:</label><br>
+        <input type="text" id="f-accel" name="f-accel"><br><br>
+        <label for="f-cruise">Cruise Control:</label>
+        <input type="checkbox" id="f-cruise" name="f-cruise"><br>
+        <label for="f-speed">Speed:</label><br>
+        <input type="text" id="f-speed" name="f-speed"><br><br>
+        <input type="submit" value="Change">
+    </form>
+</body>
+
+</html>

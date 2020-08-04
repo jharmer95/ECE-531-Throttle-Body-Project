@@ -1,6 +1,9 @@
+from simple_pid import PID
 from typing import List
 import i2c_comms as i2c
+import RPi.GPIO as GPIO
 import time
+
 
 class DTC:
     """
@@ -18,11 +21,20 @@ class DTC:
 
 
 # Global tuning parameters
-_ACCELERATOR_POS_RANGE: float = 0.05
-_ACCELERATOR_POS_THROTTLE_INC: int = 5
-_CRUISE_SPEED_RANGE: int = 2
-_CRUISE_SPEED_THROTTLE_INC: int = 5
-_MAF_SPEED_THROTTLE_INC: int = 3
+_ACCEL_DIFF_RANGE = 5
+_CRUISE_P: float = 3.0
+_CRUISE_I: float = 0.03
+_CRUISE_D: float = 0.6
+_MAF_P: float = 4.0
+_MAF_I: float = 0.01
+_MAF_D: float = 0.1
+_THROTTLE_P: float = 1.0
+_THROTTLE_I: float = 0.01
+_THROTTLE_D: float = 0.1
+
+# Other globals
+_RESET_PIN: int = 17
+
 
 class Controller:
     """
@@ -34,34 +46,81 @@ class Controller:
     MaxSpeed: int = 100
 
     # Instance Variables
+    __running: bool
     __accelerator_position: float
     __cruise_enabled: bool
+    __cruise_pid: PID
     __cruise_target_speed: int
+    __current_speed: int
     __dtc_list: List[DTC]
     __maf_value: float
+    __maf_pid: PID
+    __throttle_pid: PID
+    __throttle_position: int
 
     # Constructor
     def __init__(self):
+        global _CRUISE_P
+        global _CRUISE_I
+        global _CRUISE_D
+        global _THROTTLE_P
+        global _THROTTLE_I
+        global _THROTTLE_D
+
+        self.__running = False
         self.__accelerator_position = 0.00
         self.__cruise_enabled = False
+        self.__cruise_pid = PID(_CRUISE_P, _CRUISE_I, _CRUISE_D, setpoint=0)
         self.__cruise_target_speed = 0
+        self.__current_speed = 0
         self.__dtc_list = []
         self.__maf_value = 14.7
+        self.__maf_pid = PID(_MAF_P, _MAF_I, _MAF_D, setpoint=14.7)
+        self.__throttle_pid = PID(_THROTTLE_P, _THROTTLE_I, _THROTTLE_D, setpoint=0)
+        self.__throttle_position = 0
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(17, GPIO.OUT)
 
     # Internal functions
+    def __reset_throttle_body_board(self):
+        # TODO: Increment reset count and process relevant DTC(s)
+        print("----------------------\nRESETTING ARDUINO!\n----------------------")
+        GPIO.output(17, GPIO.HIGH)
+        time.sleep(0.2)
+        GPIO.output(17, GPIO.LOW)
+        time.sleep(2.0)
+
     def __set_throttle_body(self, pos: int):
         # Restrict throttle body to 0 - 90 degrees
         if pos > 90:
             pos = 90
         elif pos < 0:
             pos = 0
-        i2c.call_function(i2c.Function.FUNC_SET_SERVO, pos)
+        try:
+            i2c.call_function(i2c.Function.FUNC_SET_SERVO, pos)
+        except OSError:
+            self.__reset_throttle_body_board()
+            self.__set_throttle_body(pos)
+
+    def __update_throttle(self):
+        try:
+            (response, result) = i2c.call_function(i2c.Function.FUNC_GET_SERVO)
+        except OSError:
+            self.__reset_throttle_body_board()
+            self.get_throttle_body()
+        else:
+            if response:
+                self.__throttle_position = result
 
     # Functions only used for testing, do not simulate real world behavior
     def __test__set_maf(self, maf: float):
         self.__maf_value = maf
 
     # Public Functions
+    def cleanup(self):
+        self.__running = False
+        GPIO.cleanup()
+
     def get_accelerator_position(self) -> float:
         return self.__accelerator_position
 
@@ -73,10 +132,13 @@ class Controller:
             pos = 0.00
         self.__accelerator_position = pos
 
-    def get_current_speed(self) -> int:
+    def update_speed(self) -> int:
         # TODO: Read speed from something
-        speed = 50
-        return speed
+        acceleration = int(12 * (self.get_throttle_body() / 90.00) - 2)
+        self.__current_speed += acceleration
+        if self.__current_speed < 0:
+            self.__current_speed = 0
+        return self.__current_speed
 
     def get_dtc_list(self) -> List[DTC]:
         return self.__dtc_list
@@ -84,9 +146,8 @@ class Controller:
     def get_cruise_control_status(self) -> bool:
         return self.__cruise_enabled
 
-    def toggle_cruise_control(self) -> bool:
-        self.__cruise_enabled = not self.__cruise_enabled
-        return self.__cruise_enabled
+    def set_cruise_control_status(self, val: bool):
+        self.__cruise_enabled = val
 
     def get_cruise_target_speed(self) -> int:
         return self.__cruise_target_speed
@@ -100,79 +161,39 @@ class Controller:
         self.__cruise_target_speed = speed
 
     def get_throttle_body(self) -> int:
-        (response, result) = i2c.call_function(i2c.Function.FUNC_GET_SERVO)
-        if response:
-            return result
-        return None
+        return self.__throttle_position
 
     def get_maf_value(self) -> float:
         return self.__maf_value
 
     def simulate(self):
-        global _ACCELERATOR_POS_RANGE
-        global _ACCELERATOR_POS_THROTTLE_INC
-        global _CRUISE_SPEED_RANGE
-        global _CRUISE_SPEED_THROTTLE_INC
-        global _MAF_SPEED_THROTTLE_INC
-        
-        # TODO: Possibly replace this with a file or some other external value to allow for external interrupt
-        running: bool = True
-        throttle_body_miss_comm_count: int = 0
+        global _ACCEL_DIFF_RANGE
 
-        while running:
-            time.sleep(0.2)
+        self.__running = True
+
+        while self.__running:
+            time.sleep(0.3)
+            self.__update_throttle()
             if self.__cruise_enabled:
                 print("Cruise enabled")
-                speed = self.get_current_speed()
-                print(f"Speed: {speed}, Target: {self.__cruise_target_speed}")
-                if speed > self.__cruise_target_speed + _CRUISE_SPEED_RANGE or speed < self.__cruise_target_speed - _CRUISE_SPEED_RANGE:
-                    throttle_adjust: int
-                    if speed < self.__cruise_target_speed:
-                        # TODO: Use control method
-                        throttle_adjust = _CRUISE_SPEED_THROTTLE_INC
-                    else:
-                        throttle_adjust = -1 * _CRUISE_SPEED_THROTTLE_INC
-                    cur_throttle =  self.get_throttle_body()
-                    if cur_throttle == None:
-                        # TODO: More granular DTCs
-                        throttle_body_miss_comm_count += 1
-                        if throttle_body_miss_comm_count > 5:
-                            print(f"Setting DTC #1: Loss of comms with throttle body")
-                            self.__dtc_list.append(DTC(1, "Loss of comms with throttle body"))
-                        continue
-                    throttle_body_miss_comm_count = 0
-                    print(f"Adjusting throttle to {cur_throttle + throttle_adjust}")
-                    self.__set_throttle_body(cur_throttle + throttle_adjust)
+                speed = self.update_speed()
+                print("ADJUSTING FOR SPEED...")
+                self.__cruise_pid.setpoint = self.__cruise_target_speed
+                output = int(self.__cruise_pid(speed))
+                self.__set_throttle_body(output + self.__throttle_position)
             else:
-                cur_throttle = self.get_throttle_body()
-                if cur_throttle == None:
-                    # TODO: More granular DTCs
-                    throttle_body_miss_comm_count += 1
-                    if throttle_body_miss_comm_count > 5:
-                        print(f"Setting DTC #1: Loss of comms with throttle body")
-                        self.__dtc_list.append(DTC(1, "Loss of comms with throttle body"))
-                    continue
-                throttle_body_miss_comm_count = 0
-                cur_throttle_rel = cur_throttle / 90.00
-                print(f"Throttle %: {cur_throttle_rel * 100.00}, Accelerator %: {self.__accelerator_position * 100.00}")
-                if cur_throttle_rel > self.__accelerator_position + _ACCELERATOR_POS_RANGE or cur_throttle_rel < self.__accelerator_position - _ACCELERATOR_POS_RANGE:
-                    throttle_adjust: int
-                    if cur_throttle_rel < self.__accelerator_position:
-                        # TODO: Use control method
-                        throttle_adjust = _ACCELERATOR_POS_THROTTLE_INC
-                    else:
-                        throttle_adjust = -1 * _ACCELERATOR_POS_THROTTLE_INC
-                    print(f"Adjusting throttle to {cur_throttle + throttle_adjust}")
-                    self.__set_throttle_body(cur_throttle + throttle_adjust)
+                if (
+                    self.__throttle_position
+                    > self.__accelerator_position * 90 + _ACCEL_DIFF_RANGE
+                    or self.__throttle_position
+                    < self.__accelerator_position * 90 - _ACCEL_DIFF_RANGE
+                ):
+                    print("ADJUSTING FOR ACCEL...")
+                    self.__throttle_pid.setpoint = self.__accelerator_position * 90
+                    output = int(self.__throttle_pid(self.__throttle_position))
+                    self.__set_throttle_body(output + self.__throttle_position)
                 else:
-                    maf = self.get_maf_value()
-                    print(f"MAF: {maf}")
-                    if maf != 14.7:
-                        throttle_adjust: int
-                        if maf < 14.7:
-                            # TODO: Use control method
-                            throttle_adjust = _MAF_SPEED_THROTTLE_INC
-                        else:
-                            throttle_adjust = -1 * _MAF_SPEED_THROTTLE_INC
-                        print(f"Adjusting throttle to {cur_throttle + throttle_adjust}")
-                        self.__set_throttle_body(cur_throttle + throttle_adjust)
+                    print("ADJUSTING FOR MAF...")
+                    cur_maf = self.get_maf_value()
+                    output = int(self.__maf_pid(cur_maf))
+                    self.__set_throttle_body(output + self.__throttle_position)
