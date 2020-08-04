@@ -29,7 +29,7 @@ constexpr uint32_t I2C_BAUD_RATE = 100'000U;
 constexpr int I2C_ADDRESS = 8;
 
 i2c_buffer g_buf;
-volatile int g_servo_position = 46;
+volatile int g_servo_position;
 Servo g_servo;
 
 void setup()
@@ -39,6 +39,7 @@ void setup()
     Wire.onReceive(receiveEvent);
     Wire.onRequest(requestEvent);
     g_servo.attach(SERVO_PWM_PIN);
+    g_servo_position = g_servo.read();
     Serial.begin(SERIAL_BAUD_RATE);
     PRINTLN("DEBUG Enabled!\n");
 }
@@ -86,8 +87,10 @@ void SetServoPosition(int pos)
 
 void receiveEvent(int howMany)
 {
-    PRINT("Received call, size: ");
-    PRINTLN(howMany, DEC);
+    if (howMany != sizeof(g_buf))
+    {
+        return;
+    }
 
     while (Wire.available())
     {
