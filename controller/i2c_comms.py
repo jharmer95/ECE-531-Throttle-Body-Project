@@ -118,7 +118,7 @@ def call_function(function: Function, *args) -> Tuple[bool, Any]:
         mesg_buf = Buffer.unpack(response, "string")
         print(f"Error {mesg_buf.cmd}: {mesg_buf.params['string']}")
         return (False, mesg_buf.cmd)
-    
+
     if return_type == "void":
         return (True, None)
     elif return_type == "int" or return_type == "uint":

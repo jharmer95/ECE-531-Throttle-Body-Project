@@ -5,9 +5,9 @@ __copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
 __license__ = "MIT"
 __version__ = "0.1"
 
+import threading, os.path, signal, sys
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-import atexit, threading, os.path, signal, sys
 
 # Add controller directory to import path
 sys.path.append(
@@ -15,8 +15,8 @@ sys.path.append(
         os.path.join(os.path.dirname(__file__), os.path.pardir, "controller")
     )
 )
-from controller import Controller
 import simple_i2c as si2c
+from controller import Controller
 
 # Globals
 CONTROLLER_OBJ: Controller = None
@@ -41,7 +41,7 @@ socketio = SocketIO(app)
 signal.signal(signal.SIGINT, app_cleanup)
 
 
-def busFunc():
+def bus_func():
     global CONTROLLER_OBJ
 
     si2c.init_bus(1)
@@ -55,7 +55,7 @@ def activate_job():
     global CONTROLLER_THREAD
 
     CONTROLLER_OBJ = Controller()
-    CONTROLLER_THREAD = threading.Thread(target=busFunc)
+    CONTROLLER_THREAD = threading.Thread(target=bus_func)
     CONTROLLER_THREAD.start()
 
 
@@ -65,7 +65,7 @@ def index():
 
 
 @socketio.on("my event")
-def hello_world():
+def reply():
     global CONTROLLER_OBJ
 
     data = {}
@@ -77,22 +77,33 @@ def hello_world():
     data["accelerator"] = CONTROLLER_OBJ.get_accelerator_position() * 100.00
     data["throttle"] = CONTROLLER_OBJ.get_throttle_body() / 90.00 * 100.00
     data["maf"] = CONTROLLER_OBJ.get_maf_value()
+    data["dtc"] = []
+    dtc_list = CONTROLLER_OBJ.get_dtc_list()
+    for dtc in dtc_list.values():
+        data["dtc"].append({"num": dtc.number, "mesg": dtc.message})
     emit("my response", data)
 
 
-@socketio.on("set data")
-def set_data(mesg):
+@socketio.on("update accel")
+def update_accel(mesg):
     global CONTROLLER_OBJ
 
-    accel_val = float(mesg[0]["value"]) / 100.00
-    cruise_enable = mesg[1]["value"] == "true"
-    cruise_speed = int(mesg[2]["value"])
+    accel_val = float(mesg["accel-val"]) / 100.00
+    CONTROLLER_OBJ.set_accelerator_position(accel_val)
+    CONTROLLER_OBJ.set_cruise_control_status(False)
+
+
+@socketio.on("update cruise")
+def update_cruise(mesg):
+    global CONTROLLER_OBJ
+
+    cruise_enable = mesg[0]["value"] == "true"
+    cruise_speed = int(mesg[1]["value"])
 
     if cruise_enable:
         CONTROLLER_OBJ.set_cruise_target_speed(cruise_speed)
         CONTROLLER_OBJ.set_cruise_control_status(True)
     else:
-        CONTROLLER_OBJ.set_accelerator_position(accel_val)
         CONTROLLER_OBJ.set_cruise_control_status(False)
 
 

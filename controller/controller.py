@@ -5,11 +5,11 @@ __copyright__ = "Copyright (c) 2020 Jackson Harmer. All rights reserved."
 __license__ = "MIT"
 __version__ = "0.1"
 
-from simple_pid import PID
-from typing import List
+import time
 import i2c_comms as i2c
 import RPi.GPIO as GPIO
-import time
+from simple_pid import PID
+from typing import Dict
 
 
 class DTC:
@@ -55,11 +55,12 @@ class Controller:
     # Instance Variables
     __running: bool
     __accelerator_position: float
+    __arduino_reset_count: float
     __cruise_enabled: bool
     __cruise_pid: PID
     __cruise_target_speed: int
     __current_speed: int
-    __dtc_list: List[DTC]
+    __dtc_list: Dict[int, DTC]
     __maf_value: float
     __maf_pid: PID
     __throttle_pid: PID
@@ -76,11 +77,12 @@ class Controller:
 
         self.__running = False
         self.__accelerator_position = 0.00
+        self.__arduino_reset_count = 0.00
         self.__cruise_enabled = False
         self.__cruise_pid = PID(_CRUISE_P, _CRUISE_I, _CRUISE_D, setpoint=0)
         self.__cruise_target_speed = 0
         self.__current_speed = 0
-        self.__dtc_list = []
+        self.__dtc_list = {}
         self.__maf_value = 14.7
         self.__maf_pid = PID(_MAF_P, _MAF_I, _MAF_D, setpoint=14.7)
         self.__throttle_pid = PID(_THROTTLE_P, _THROTTLE_I, _THROTTLE_D, setpoint=0)
@@ -90,7 +92,9 @@ class Controller:
 
     # Internal functions
     def __reset_throttle_body_board(self):
-        # TODO: Increment reset count and process relevant DTC(s)
+        self.__arduino_reset_count += 1.00
+        if self.__arduino_reset_count > 3.00:
+            self.__dtc_list[1] = DTC(1, "Intermittent I2C comms")
         print("----------------------\nRESETTING ARDUINO!\n----------------------")
         GPIO.output(17, GPIO.HIGH)
         time.sleep(0.2)
@@ -108,6 +112,13 @@ class Controller:
         except OSError:
             self.__reset_throttle_body_board()
             self.__set_throttle_body(pos)
+        else:
+            # Slowly decrease intermittent reset count for DTC
+            self.__arduino_reset_count -= 0.10
+            if self.__arduino_reset_count < 3.00:
+                self.__dtc_list.pop(1, None)
+            if self.__arduino_reset_count < 0.00:
+                self.__arduino_reset_count = 0.00
 
     def __update_throttle(self):
         try:
@@ -116,6 +127,12 @@ class Controller:
             self.__reset_throttle_body_board()
             self.get_throttle_body()
         else:
+            # Slowly decrease intermittent reset count for DTC
+            self.__arduino_reset_count -= 0.10
+            if self.__arduino_reset_count < 3.00:
+                self.__dtc_list.pop(1, None)
+            if self.__arduino_reset_count < 0.00:
+                self.__arduino_reset_count = 0.00
             if response:
                 self.__throttle_position = result
 
@@ -140,14 +157,18 @@ class Controller:
         self.__accelerator_position = pos
 
     def update_speed(self) -> int:
-        # TODO: Read speed from something
         acceleration = int(12 * (self.get_throttle_body() / 90.00) - 2)
         self.__current_speed += acceleration
         if self.__current_speed < 0:
             self.__current_speed = 0
+
+        if self.__current_speed > 100:
+            self.__dtc_list[2] = DTC(2, "Speed value out of range")
+        else:
+            self.__dtc_list.pop(2, None)
         return self.__current_speed
 
-    def get_dtc_list(self) -> List[DTC]:
+    def get_dtc_list(self) -> Dict[int, DTC]:
         return self.__dtc_list
 
     def get_cruise_control_status(self) -> bool:
@@ -182,9 +203,7 @@ class Controller:
             time.sleep(0.3)
             self.__update_throttle()
             if self.__cruise_enabled:
-                print("Cruise enabled")
                 speed = self.update_speed()
-                print("ADJUSTING FOR SPEED...")
                 self.__cruise_pid.setpoint = self.__cruise_target_speed
                 output = int(self.__cruise_pid(speed))
                 self.__set_throttle_body(output + self.__throttle_position)
@@ -195,12 +214,10 @@ class Controller:
                     or self.__throttle_position
                     < self.__accelerator_position * 90 - _ACCEL_DIFF_RANGE
                 ):
-                    print("ADJUSTING FOR ACCEL...")
                     self.__throttle_pid.setpoint = self.__accelerator_position * 90
                     output = int(self.__throttle_pid(self.__throttle_position))
                     self.__set_throttle_body(output + self.__throttle_position)
                 else:
-                    print("ADJUSTING FOR MAF...")
                     cur_maf = self.get_maf_value()
                     output = int(self.__maf_pid(cur_maf))
                     self.__set_throttle_body(output + self.__throttle_position)

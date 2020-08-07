@@ -162,10 +162,12 @@ def read_int(
     if int_sz < 0:
         print("Integer size must be positive", file=sys.stderr)
         return
-    elif int_sz > 64:
+
+    if int_sz > 64:
         print("Max integer size is 64-bit", file=sys.stderr)
         return
-    elif int_sz not in [8, 16, 32, 64]:
+
+    if int_sz not in [8, 16, 32, 64]:
         print("Irregular integer size, rounding up...")
         if int_sz < 8:
             int_sz = 8

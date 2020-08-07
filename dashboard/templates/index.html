@@ -13,170 +13,40 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://bernii.github.io/gauge.js/dist/gauge.min.js"></script>
-    <script type="text/javascript" charset="utf-8">
-        $(document).ready(function () {
-            var socket = io();
-            var opts = {
-                angle: -0.1,
-                lineWidth: 0.4,
-                radiusScale: 1,
-                pointer: {
-                    length: 0.6,
-                    strokeWidth: 0.035,
-                    color: "#000000"
-                },
-                limitMax: true,
-                limitMin: true,
-                colorStart: "#6FADCF",
-                colorStop: "#8FC0DA",
-                strokeColor: "#E0E0E0",
-                generateGradient: true,
-                highDpiSupport: true,
-                renderTicks: {
-                    divisions: 5,
-                    divWidth: 1.1,
-                    divLength: 0.42,
-                    divColor: "#333333",
-                    subDivisions: 4,
-                    subLength: 0.32,
-                    subWidth: 0.6,
-                    subColor: "#666666"
-                },
-                staticLabels: {
-                    font: "10px sans-serif",
-                    labels: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    color: "#000000",
-                    fractionDigits: 0
-                }
-            };
-            var target = document.getElementById("gauge-canvas");
-            var gauge = new Gauge(target).setOptions(opts);
-            gauge.maxValue = 100;
-            gauge.setMinValue(0);
-            gauge.animationSpeed = 32;
-            gauge.set(0);
-
-            var opts2 = {
-                angle: 0.25,
-                lineWidth: 0.26,
-                radiusScale: 1,
-                pointer: {
-                    length: 0.52,
-                    strokeWidth: 0.022,
-                    color: '#000000'
-                },
-                limitMax: false,
-                limitMin: false,
-                colorStart: '#6F6EA0',
-                colorStop: '#C0C0DB',
-                strokeColor: '#EEEEEE',
-                generateGradient: true,
-                highDpiSupport: true,
-                staticZones: [
-                    { strokeStyle: "#F03E3E", min: 13400, max: 14100 },
-                    { strokeStyle: "#FFDD00", min: 14100, max: 14500 },
-                    { strokeStyle: "#30B32D", min: 14500, max: 14900 },
-                    { strokeStyle: "#FFDD00", min: 14900, max: 15300 },
-                    { strokeStyle: "#F03E3E", min: 15300, max: 16000 }
-                ]
-                //percentColors: [[0.0, "#a9d70b"], [0.4, "#f9c802"], [0.5, "#00ff00"], [0.6, "#f9c802"], [1.0, "#a9d70b"]]
-            };
-            var target2 = document.getElementById('gauge2-canvas');
-            var gauge2 = new Gauge(target2).setOptions(opts2);
-            gauge2.maxValue = 16000;
-            gauge2.setMinValue(13400);  // Prefer setter over gauge.minValue = 0
-            gauge2.animationSpeed = 32; // set animation speed (32 is default value)
-            gauge2.set(13400); // set actual value
-            socket.on("connect", function () {
-                socket.emit("my event");
-            });
-            socket.on("my response", function (msg) {
-                gauge.set(msg.vehicle_speed);
-                $("#vehicle-speed-val").text(msg.vehicle_speed + " mph");
-                gauge2.set(msg.maf * 1000);
-                $("#afr-val").text(msg.maf);
-                $("#accel-bar").value = msg.accelerator;
-                $("#accel-val").text(msg.accelerator + "%");
-                $("#throttle-bar").value = msg.throttle;
-                $("#throttle-val").text(msg.throttle + "%");
-            });
-            setInterval(function () {
-                socket.emit("my event");
-            }, 1000);
-        });
-
-        function updateAccel(val) {
-            // TODO: Send this back to controller, don't just update directly
-            var obj = { "accel-val": val };
-            socket.emit("update accel", obj);
-        }
-
-        function updateCruise() {
-            var arr = $("cruise-form").serializeArray();
-            if (arr.length === 2) {
-                arr[0]["value"] = "true";
-                $("#accel-range").disabled = true;
-                console.log("DISABLING RANGE");
-            } else {
-                var obj = { "name": "cruise-enable", "value": "false" };
-                arr.splice(0, 0, obj);
-                $("#accel-range").disabled = false;
-                console.log("ENABLING RANGE");
-            }
-            if (arr[1]["value"] == "") {
-                arr[1]["value"] = "0";
-            }
-            socket.emit("update cruise", arr);
-        }
-    </script>
-
-    <style>
-        footer {
-            text-align: center;
-            padding: 3px;
-            background-color: grey;
-            color: white;
-            position: fixed;
-            margin-bottom: 0px;
-            bottom: 0px;
-            left: 0px;
-            right: 0px;
-            height: 55px;
-        }
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/main.css') }}">
     </style>
 </head>
 
 <body>
-    <h1>ECM Dashboard</h1>
-    <p>Displays readouts of an ECM simulation in a realistic way</p>
+    <div id="main-div">
+        <h1>ECM Dashboard</h1>
+        <p>Displays readouts of an ECM simulation in a realistic way</p>
 
-    <br><br><br>
-    <from id="cruise-form" style="position: absolute; top: 560px;">
-        <label for="cruise-enable">Cruise Enabled: </label>
-        <input id="cruise-enable" name="cruise-enable" type="checkbox"><br>
-        <label for="cruise-input">Cruise Speed: </label>
-        <input id="cruise-input" name="cruise-input" type="text" style="width: 50px;"><br>
-        <input type="submit" value="Change" onsubmit="updateCruise();"><br>
-    </from>
-    <p class="gauge-value" id="accel-val" style="position: absolute; z-index: 1; left: 42px; top: 450px;">75%</p>
-    <p class="gauge-value" id="throttle-val" style="position: absolute; z-index: 1; left: 160px; top: 450px;">25%</p>
-    <p class="gauge-value" id="vehicle-speed-val" style="position: absolute; z-index: 1; left: 392px; top: 450px;">0 mph
-    </p>
-    <p class="gauge-value" id="afr-val" style="position: absolute; z-index: 1; left: 784px; top: 450px;">00.00</p>
-    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 12px; top: 420px;">Accelerator</h4>
-    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 138px; top: 420px;">Throttle</h4>
-    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 354px; top: 420px; text-align: center;">Vehicle
-        Speed</h4>
-    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 744px; top: 420px;">Air-Fuel Ratio</h4>
-    <progress class="pos-bar" id="accel-bar" max=100 min=0 value=75
-        style="transform: rotate(270deg); scale: 1.6; position: absolute; top: 300px; left: -20px;"></progress>
-    <progress class="pos-bar" id="throttle-bar" max=100 min=0 value=25
-        style="transform: rotate(270deg); scale: 1.6; position: absolute; top: 300px; left:96px;"></progress>
-    <input class="slider" id="accel-range" type="range" min="0" max="100"
-        style="transform: rotate(270deg); scale: 1.6; position: absolute; top:294px; left: -30px;"
-        oninput="updateAccel(this.value);">
-    <canvas id="gauge-canvas" width="380" height="240" style="margin-left: 220px;"></canvas>
-    <canvas id="gauge2-canvas" width="380" height="240"></canvas>
+        <br><br><br>
+        <form id="cruise-form">
+            <label for="cruise-enable">Cruise Enabled: </label>
+            <input id="cruise-enable" name="cruise-enable" type="checkbox"><br>
+            <label for="cruise-input">Cruise Speed: </label>
+            <input id="cruise-input" name="cruise-input" type="text" style="width: 50px;"><br>
+            <input type="submit" value="Change"><br>
+        </form>
+        <p class="gauge-value" id="accel-val">75%</p>
+        <p class="gauge-value" id="throttle-val">25%</p>
+        <p class="gauge-value" id="vehicle-speed-val">0 mph</p>
+        <p class="gauge-value" id="afr-val">00.00</p>
+        <h4 class="gauge-label" style="left: 12px;">Accelerator</h4>
+        <h4 class="gauge-label" style="left: 138px;">Throttle</h4>
+        <h4 class="gauge-label" style="left: 354px;">Vehicle Speed</h4>
+        <h4 class="gauge-label" style="left: 744px;">Air-Fuel Ratio</h4>
+        <progress class="pos-bar" id="accel-bar" max=100 min=0 value=75 style="left: -20px;"></progress>
+        <progress class="pos-bar" id="throttle-bar" max=100 min=0 value=25 style="left:96px;"></progress>
+        <input id="accel-range" type="range" min="0" max="100" value="0" oninput="updateAccel(this.value);">
+        <canvas id="gauge-canvas" width="380" height="240" style="margin-left: 220px;"></canvas>
+        <canvas id="gauge2-canvas" width="380" height="240"></canvas>
+        <div id="dtc-div">
+        </div>
+    </div>
 
     <footer>
         <p>Author: Jackson Harmer<br>
