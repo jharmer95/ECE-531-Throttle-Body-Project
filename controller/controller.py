@@ -29,8 +29,8 @@ class DTC:
 
 # Global tuning parameters
 _ACCEL_DIFF_RANGE = 5
-_CRUISE_P: float = 3.0
-_CRUISE_I: float = 0.03
+_CRUISE_P: float = 0.55
+_CRUISE_I: float = 0.01
 _CRUISE_D: float = 0.6
 _MAF_P: float = 4.0
 _MAF_I: float = 0.01
@@ -157,8 +157,18 @@ class Controller:
         self.__accelerator_position = pos
 
     def update_speed(self) -> int:
-        acceleration = int(12 * (self.get_throttle_body() / 90.00) - 2)
-        self.__current_speed += acceleration
+        # Max acceleration (m/s2)
+        a_max = 4.5
+
+        cur_throttle = self.get_throttle_body() / 90.00
+
+        # Acceleration curve equation
+        a_x = a_max * (8.073 * (cur_throttle ** 4) - 18.252 * (cur_throttle ** 3) + 12.212 * (cur_throttle ** 2) - 1.022 * cur_throttle - 0.005)
+        # Subtract for friction and air resistance
+        a_x -= 0.89
+        # Convert to mph/s
+        a_x *= 2.237
+        self.__current_speed += int(a_x)
         if self.__current_speed < 0:
             self.__current_speed = 0
 

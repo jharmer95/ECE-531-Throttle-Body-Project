@@ -78,11 +78,11 @@ $(document).ready(function () {
         gauge.set(msg.vehicle_speed);
         $("#vehicle-speed-val").text(msg.vehicle_speed + " mph");
         gauge2.set(msg.maf * 1000);
-        $("#afr-val").text(msg.maf);
+        $("#afr-val").text(msg.maf.toFixed(2));
         $("#accel-bar").val(msg.accelerator);
-        $("#accel-val").text(msg.accelerator + "%");
+        $("#accel-val").text(msg.accelerator.toFixed(2) + "%");
         $("#throttle-bar").val(msg.throttle);
-        $("#throttle-val").text(msg.throttle + "%");
+        $("#throttle-val").text(msg.throttle.toFixed(2) + "%");
         parseDTC(msg.dtc);
     });
     $("#cruise-form").submit(function () {
