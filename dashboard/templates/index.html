@@ -16,7 +16,7 @@
     <script type="text/javascript" charset="utf-8">
         $(document).ready(function () {
             var socket = io();
-            var opts ={
+            var opts = {
                 angle: -0.1,
                 lineWidth: 0.4,
                 radiusScale: 1,
@@ -55,6 +55,7 @@
             gauge.setMinValue(0);
             gauge.animationSpeed = 32;
             gauge.set(0);
+
             var opts2 = {
                 angle: 0.25,
                 lineWidth: 0.26,
@@ -72,11 +73,11 @@
                 generateGradient: true,
                 highDpiSupport: true,
                 staticZones: [
-                    {strokeStyle: "#F03E3E", min: 13400, max: 14100},
-                    {strokeStyle: "#FFDD00", min: 14100, max: 14500},
-                    {strokeStyle: "#30B32D", min: 14500, max: 14900},
-                    {strokeStyle: "#FFDD00", min: 14900, max: 15300},
-                    {strokeStyle: "#F03E3E", min: 15300, max: 16000}
+                    { strokeStyle: "#F03E3E", min: 13400, max: 14100 },
+                    { strokeStyle: "#FFDD00", min: 14100, max: 14500 },
+                    { strokeStyle: "#30B32D", min: 14500, max: 14900 },
+                    { strokeStyle: "#FFDD00", min: 14900, max: 15300 },
+                    { strokeStyle: "#F03E3E", min: 15300, max: 16000 }
                 ]
                 //percentColors: [[0.0, "#a9d70b"], [0.4, "#f9c802"], [0.5, "#00ff00"], [0.6, "#f9c802"], [1.0, "#a9d70b"]]
             };
@@ -90,60 +91,98 @@
                 socket.emit("my event");
             });
             socket.on("my response", function (msg) {
-                $("#cruise-enabled").text("Cruise Control: " + msg.cruise_on);
-                $("#cruise-speed").text("Cruise Speed: " + msg.cruise_speed);
-                $("#vehicle-speed").text("Vehicle Speed: " + msg.vehicle_speed);
-                $("#accelerator").text("Accelerator %: " + msg.accelerator);
-                $("#throttle").text("Throttle %: " + msg.throttle);
-                $("#maf-val").text("MAF: " + msg.maf);
                 gauge.set(msg.vehicle_speed);
+                $("#vehicle-speed-val").text(msg.vehicle_speed + " mph");
                 gauge2.set(msg.maf * 1000);
-            });
-            $("#my-form").submit(function () {
-                var arr = $("#my-form").serializeArray();
-                if (arr.length === 3) {
-                    arr[1]["value"] = "true"
-                } else {
-                    var obj = { "name": "f-cruise", "value": "false" }
-                    arr.splice(1, 0, obj)
-                }
-                if (arr[0]["value"] == "") {
-                    arr[0]["value"] = "0";
-                }
-                if (arr[2]["value"] == "") {
-                    arr[2]["value"] = "0";
-                }
-                socket.emit("set data", arr);
-                return false;
+                $("#afr-val").text(msg.maf);
+                $("#accel-bar").value = msg.accelerator;
+                $("#accel-val").text(msg.accelerator + "%");
+                $("#throttle-bar").value = msg.throttle;
+                $("#throttle-val").text(msg.throttle + "%");
             });
             setInterval(function () {
                 socket.emit("my event");
             }, 1000);
         });
+
+        function updateAccel(val) {
+            // TODO: Send this back to controller, don't just update directly
+            var obj = { "accel-val": val };
+            socket.emit("update accel", obj);
+        }
+
+        function updateCruise() {
+            var arr = $("cruise-form").serializeArray();
+            if (arr.length === 2) {
+                arr[0]["value"] = "true";
+                $("#accel-range").disabled = true;
+                console.log("DISABLING RANGE");
+            } else {
+                var obj = { "name": "cruise-enable", "value": "false" };
+                arr.splice(0, 0, obj);
+                $("#accel-range").disabled = false;
+                console.log("ENABLING RANGE");
+            }
+            if (arr[1]["value"] == "") {
+                arr[1]["value"] = "0";
+            }
+            socket.emit("update cruise", arr);
+        }
     </script>
+
+    <style>
+        footer {
+            text-align: center;
+            padding: 3px;
+            background-color: grey;
+            color: white;
+            position: fixed;
+            margin-bottom: 0px;
+            bottom: 0px;
+            left: 0px;
+            right: 0px;
+            height: 55px;
+        }
+    </style>
 </head>
 
 <body>
-    <p id="cruise-enabled"></p>
-    <p id="cruise-speed"></p>
-    <p id="vehicle-speed"></p>
-    <p id="accelerator"></p>
-    <p id="throttle"></p>
-    <p id="maf-val"></p>
-    <br><br>
-    <canvas id="gauge-canvas" width="380" height="240"></canvas>
-    <br>
+    <h1>ECM Dashboard</h1>
+    <p>Displays readouts of an ECM simulation in a realistic way</p>
+
+    <br><br><br>
+    <from id="cruise-form" style="position: absolute; top: 560px;">
+        <label for="cruise-enable">Cruise Enabled: </label>
+        <input id="cruise-enable" name="cruise-enable" type="checkbox"><br>
+        <label for="cruise-input">Cruise Speed: </label>
+        <input id="cruise-input" name="cruise-input" type="text" style="width: 50px;"><br>
+        <input type="submit" value="Change" onsubmit="updateCruise();"><br>
+    </from>
+    <p class="gauge-value" id="accel-val" style="position: absolute; z-index: 1; left: 42px; top: 450px;">75%</p>
+    <p class="gauge-value" id="throttle-val" style="position: absolute; z-index: 1; left: 160px; top: 450px;">25%</p>
+    <p class="gauge-value" id="vehicle-speed-val" style="position: absolute; z-index: 1; left: 392px; top: 450px;">0 mph
+    </p>
+    <p class="gauge-value" id="afr-val" style="position: absolute; z-index: 1; left: 784px; top: 450px;">00.00</p>
+    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 12px; top: 420px;">Accelerator</h4>
+    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 138px; top: 420px;">Throttle</h4>
+    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 354px; top: 420px; text-align: center;">Vehicle
+        Speed</h4>
+    <h4 class="gauge-label" style="position: absolute; z-index: 1; left: 744px; top: 420px;">Air-Fuel Ratio</h4>
+    <progress class="pos-bar" id="accel-bar" max=100 min=0 value=75
+        style="transform: rotate(270deg); scale: 1.6; position: absolute; top: 300px; left: -20px;"></progress>
+    <progress class="pos-bar" id="throttle-bar" max=100 min=0 value=25
+        style="transform: rotate(270deg); scale: 1.6; position: absolute; top: 300px; left:96px;"></progress>
+    <input class="slider" id="accel-range" type="range" min="0" max="100"
+        style="transform: rotate(270deg); scale: 1.6; position: absolute; top:294px; left: -30px;"
+        oninput="updateAccel(this.value);">
+    <canvas id="gauge-canvas" width="380" height="240" style="margin-left: 220px;"></canvas>
     <canvas id="gauge2-canvas" width="380" height="240"></canvas>
-    <br><br>
-    <form id="my-form" action="" method="get">
-        <label for="f-accel">Accelerator:</label><br>
-        <input type="text" id="f-accel" name="f-accel"><br><br>
-        <label for="f-cruise">Cruise Control:</label>
-        <input type="checkbox" id="f-cruise" name="f-cruise"><br>
-        <label for="f-speed">Speed:</label><br>
-        <input type="text" id="f-speed" name="f-speed"><br><br>
-        <input type="submit" value="Change">
-    </form>
+
+    <footer>
+        <p>Author: Jackson Harmer<br>
+            <a href="mailto:jharmer@umich.edu">jharmer@umich.edu</a>
+        </p>
+    </footer>
 </body>
 
 </html>
